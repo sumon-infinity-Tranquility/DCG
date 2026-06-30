@@ -1,0 +1,9 @@
+{
+  "name": "DCG - Daffodil CrisisGuard",
+  "short_name": "DCG",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f4fbf7",
+  "theme_color": "#0ea875",
+  "description": "Campus crisis reporting and response dashboard."
+}

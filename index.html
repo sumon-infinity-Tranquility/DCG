@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Daffodil CrisisGuard safety reporting, alerting, and campus response dashboard."
+    />
+    <title>DCG - Daffodil CrisisGuard</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <link rel="manifest" href="./manifest.json" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Primary">
+        <a class="brand" href="#overview" aria-label="Daffodil CrisisGuard home">
+          <span class="brand-mark" aria-hidden="true">
+            <i data-lucide="shield-check"></i>
+          </span>
+          <span>
+            <strong>DCG</strong>
+            <small>Daffodil CrisisGuard</small>
+          </span>
+        </a>
+
+        <nav class="nav-list">
+          <a href="#overview" class="active"><i data-lucide="layout-dashboard"></i>Overview</a>
+          <a href="#report"><i data-lucide="siren"></i>Report</a>
+          <a href="#alerts"><i data-lucide="radio"></i>Alerts</a>
+          <a href="#cases"><i data-lucide="kanban"></i>Cases</a>
+          <a href="#contacts"><i data-lucide="phone-call"></i>Contacts</a>
+        </nav>
+
+        <div class="safety-card">
+          <div class="safety-icon"><i data-lucide="heart-pulse"></i></div>
+          <p>Emergency desk</p>
+          <strong>+880 1713 493050</strong>
+          <button class="ghost-button" type="button" data-copy="+8801713493050">
+            <i data-lucide="copy"></i>
+            Copy number
+          </button>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Stay alert, stay safe</p>
+            <h1>Daffodil CrisisGuard</h1>
+          </div>
+          <div class="topbar-actions">
+            <span class="status-pill" id="firebaseStatus">
+              <i data-lucide="cloud-off"></i>
+              Firebase demo mode
+            </span>
+            <button class="danger-button" type="button" id="sosButton">
+              <i data-lucide="siren"></i>
+              SOS
+            </button>
+            <button class="icon-button" type="button" id="themeToggle" aria-label="Toggle theme">
+              <i data-lucide="moon"></i>
+            </button>
+            <button class="primary-button" type="button" id="signInButton">
+              <i data-lucide="log-in"></i>
+              Sign in
+            </button>
+          </div>
+        </header>
+
+        <section class="hero" id="overview">
+          <div class="hero-copy">
+            <span class="section-kicker"><i data-lucide="sparkles"></i>Campus safety app</span>
+            <h2>Instant crisis reporting with clear response coordination.</h2>
+            <p>
+              Connect students, teachers, alumni, and proctor office teams through quick alerts,
+              live incident updates, and verified emergency contacts.
+            </p>
+            <div class="hero-actions">
+              <a class="primary-button" href="#report"><i data-lucide="plus-circle"></i>New report</a>
+              <a class="secondary-button" href="#alerts"><i data-lucide="bell-ring"></i>View alerts</a>
+            </div>
+          </div>
+          <div class="hero-panel" aria-label="Safety pulse">
+            <div class="pulse-header">
+              <span>Safety pulse</span>
+              <strong id="clock">--:--</strong>
+            </div>
+            <div class="risk-meter" aria-hidden="true">
+              <span></span>
+            </div>
+            <dl class="stats-grid">
+              <div>
+                <dt>Open cases</dt>
+                <dd id="openCases">0</dd>
+              </div>
+              <div>
+                <dt>Resolved today</dt>
+                <dd id="resolvedCases">0</dd>
+              </div>
+              <div>
+                <dt>Avg. response</dt>
+                <dd>4m</dd>
+              </div>
+              <div>
+                <dt>Teams online</dt>
+                <dd>6</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <form class="report-card" id="report" autocomplete="on">
+            <div class="section-heading">
+              <div>
+                <span class="section-kicker"><i data-lucide="file-warning"></i>Report incident</span>
+                <h2>Send a safety report</h2>
+              </div>
+              <span class="secure-note"><i data-lucide="lock-keyhole"></i>Firestore ready</span>
+            </div>
+
+            <div class="field-grid">
+              <label>
+                Reporter name
+                <input name="name" type="text" placeholder="Your name" required />
+              </label>
+              <label>
+                Contact number
+                <input name="contact" type="tel" placeholder="+880..." required />
+              </label>
+              <label>
+                Role
+                <select name="role" required>
+                  <option value="">Select role</option>
+                  <option>Student</option>
+                  <option>Teacher</option>
+                  <option>Alumni</option>
+                  <option>Staff</option>
+                  <option>Visitor</option>
+                </select>
+              </label>
+              <label>
+                Location
+                <input name="location" type="text" placeholder="Building, floor, room" required />
+              </label>
+              <label>
+                Incident type
+                <select name="category" required>
+                  <option>Medical</option>
+                  <option>Security</option>
+                  <option>Transport</option>
+                  <option>Harassment</option>
+                  <option>Infrastructure</option>
+                  <option>Other</option>
+                </select>
+              </label>
+              <label>
+                Priority
+                <select name="priority" required>
+                  <option>Medium</option>
+                  <option>High</option>
+                  <option>Critical</option>
+                  <option>Low</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              What happened?
+              <textarea
+                name="details"
+                rows="5"
+                placeholder="Describe the incident, people involved, and immediate help needed."
+                required
+              ></textarea>
+            </label>
+
+            <div class="form-footer">
+              <label class="check-row">
+                <input name="anonymous" type="checkbox" />
+                Hide my name from public updates
+              </label>
+              <button class="primary-button" type="submit">
+                <i data-lucide="send"></i>
+                Submit report
+              </button>
+            </div>
+          </form>
+
+          <section class="alerts-card" id="alerts" aria-labelledby="alertsTitle">
+            <div class="section-heading">
+              <div>
+                <span class="section-kicker"><i data-lucide="bell"></i>Live alerts</span>
+                <h2 id="alertsTitle">Recent campus activity</h2>
+              </div>
+              <div class="compact-actions">
+                <button class="icon-button" type="button" id="exportButton" aria-label="Export reports">
+                  <i data-lucide="download"></i>
+                </button>
+                <button class="icon-button" type="button" id="refreshButton" aria-label="Refresh alerts">
+                  <i data-lucide="refresh-cw"></i>
+                </button>
+              </div>
+            </div>
+            <div class="filter-bar">
+              <label>
+                Search
+                <input id="searchInput" type="search" placeholder="Location, reporter, details" />
+              </label>
+              <label>
+                Status
+                <select id="statusFilter">
+                  <option value="all">All</option>
+                  <option value="open">Open</option>
+                  <option value="triage">Triage</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+              </label>
+              <label>
+                Priority
+                <select id="priorityFilter">
+                  <option value="all">All</option>
+                  <option value="critical">Critical</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </label>
+            </div>
+            <div class="alert-list" id="alertList"></div>
+          </section>
+        </section>
+
+        <section class="cases-section" id="cases">
+          <div class="section-heading">
+            <div>
+              <span class="section-kicker"><i data-lucide="kanban"></i>Response board</span>
+              <h2>Case workflow</h2>
+            </div>
+            <span class="secure-note" id="userStatus">Guest responder</span>
+          </div>
+          <div class="case-board" id="caseBoard"></div>
+        </section>
+
+        <section class="contacts-section" id="contacts">
+          <div class="section-heading">
+            <div>
+              <span class="section-kicker"><i data-lucide="users-round"></i>Response network</span>
+              <h2>Emergency contacts</h2>
+            </div>
+            <span class="secure-note">Tap to copy</span>
+          </div>
+          <div class="contact-grid" id="contactGrid"></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="modal" id="sosModal" aria-hidden="true">
+      <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="sosTitle">
+        <div class="section-heading">
+          <div>
+            <span class="section-kicker"><i data-lucide="shield-alert"></i>Emergency mode</span>
+            <h2 id="sosTitle">Create critical alert?</h2>
+          </div>
+          <button class="icon-button" type="button" id="closeSosButton" aria-label="Close SOS dialog">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <p class="modal-copy">
+          This creates a critical campus alert in the response board and keeps emergency contacts one tap away.
+        </p>
+        <div class="sos-grid">
+          <button class="danger-button" type="button" data-sos="Main Campus Gate">Gate emergency</button>
+          <button class="danger-button" type="button" data-sos="Academic Building">Academic building</button>
+          <button class="danger-button" type="button" data-sos="Student Hall">Student hall</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./firebase-config.js"></script>
+    <script defer src="./app.js"></script>
+  </body>
+</html>
