@@ -145,6 +145,107 @@ class ResponderContact {
   final bool online;
 }
 
+class DcgUser {
+  const DcgUser({
+    required this.name,
+    required this.email,
+    required this.role,
+    required this.phone,
+    required this.department,
+  });
+
+  final String name;
+  final String email;
+  final String role;
+  final String phone;
+  final String department;
+
+  DcgUser copyWith({
+    String? name,
+    String? email,
+    String? role,
+    String? phone,
+    String? department,
+  }) {
+    return DcgUser(
+      name: name ?? this.name,
+      email: email ?? this.email,
+      role: role ?? this.role,
+      phone: phone ?? this.phone,
+      department: department ?? this.department,
+    );
+  }
+}
+
+class AuthRecord {
+  const AuthRecord({required this.user, required this.password});
+
+  final DcgUser user;
+  final String password;
+}
+
+class DemoAuthStore {
+  static final Map<String, AuthRecord> _records = {
+    'responder@diu.edu.bd': const AuthRecord(
+      password: '123456',
+      user: DcgUser(
+        name: 'Campus Responder',
+        email: 'responder@diu.edu.bd',
+        role: 'Responder',
+        phone: '+8801713493050',
+        department: 'Proctor Office',
+      ),
+    ),
+  };
+
+  static String normalize(String email) => email.trim().toLowerCase();
+
+  static DcgUser signIn({required String email, required String password}) {
+    final record = _records[normalize(email)];
+    if (record == null) {
+      throw const AuthException('No account found for this email.');
+    }
+    if (record.password != password) {
+      throw const AuthException('Password does not match.');
+    }
+    return record.user;
+  }
+
+  static DcgUser signUp({
+    required String name,
+    required String email,
+    required String password,
+    required String role,
+    required String phone,
+  }) {
+    final key = normalize(email);
+    if (_records.containsKey(key)) {
+      throw const AuthException('An account already exists. Please sign in.');
+    }
+    final user = DcgUser(
+      name: name.trim().isEmpty ? 'Campus Responder' : name.trim(),
+      email: key,
+      role: role,
+      phone: phone.trim().isEmpty ? '+8801700000000' : phone.trim(),
+      department: role == 'Student' ? 'Student Affairs' : 'Proctor Office',
+    );
+    _records[key] = AuthRecord(user: user, password: password);
+    return user;
+  }
+
+  static void updateUser(DcgUser user) {
+    final key = normalize(user.email);
+    final current = _records[key];
+    _records[key] = AuthRecord(user: user, password: current?.password ?? '123456');
+  }
+}
+
+class AuthException implements Exception {
+  const AuthException(this.message);
+
+  final String message;
+}
+
 const categories = [
   EmergencyCategory('Medical', Icons.medical_services_rounded, Color(0xFFDCE991), 'Health, injury, ambulance'),
   EmergencyCategory('Violence', Icons.security_rounded, Color(0xFFF5A6DF), 'Threat, harassment, crowd risk'),
@@ -208,27 +309,21 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  bool signedIn = false;
-  String responderName = 'Campus Responder';
+  DcgUser? currentUser;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 420),
-      child: signedIn
+      child: currentUser != null
           ? DcgHome(
               key: const ValueKey('home'),
-              responderName: responderName,
-              onSignOut: () => setState(() => signedIn = false),
+              initialUser: currentUser!,
+              onSignOut: () => setState(() => currentUser = null),
             )
           : AuthScreen(
               key: const ValueKey('auth'),
-              onSignedIn: (name) {
-                setState(() {
-                  responderName = name.trim().isEmpty ? 'Campus Responder' : name.trim();
-                  signedIn = true;
-                });
-              },
+              onSignedIn: (user) => setState(() => currentUser = user),
             ),
     );
   }
@@ -237,7 +332,7 @@ class _AuthGateState extends State<AuthGate> {
 class AuthScreen extends StatefulWidget {
   const AuthScreen({required this.onSignedIn, super.key});
 
-  final ValueChanged<String> onSignedIn;
+  final ValueChanged<DcgUser> onSignedIn;
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -246,10 +341,12 @@ class AuthScreen extends StatefulWidget {
 class _AuthScreenState extends State<AuthScreen> {
   final formKey = GlobalKey<FormState>();
   final nameController = TextEditingController(text: 'Campus Responder');
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
+  final emailController = TextEditingController(text: 'responder@diu.edu.bd');
+  final passwordController = TextEditingController(text: '123456');
+  final phoneController = TextEditingController(text: '+8801713493050');
   bool createAccount = false;
   bool showPassword = false;
+  bool busy = false;
   int roleIndex = 0;
 
   @override
@@ -257,13 +354,39 @@ class _AuthScreenState extends State<AuthScreen> {
     nameController.dispose();
     emailController.dispose();
     passwordController.dispose();
+    phoneController.dispose();
     super.dispose();
   }
 
+  void submit() {
+    if (!(formKey.currentState?.validate() ?? false)) return;
+
+    setState(() => busy = true);
+    try {
+      final user = createAccount
+          ? DemoAuthStore.signUp(
+              name: nameController.text,
+              email: emailController.text,
+              password: passwordController.text,
+              role: roles[roleIndex],
+              phone: phoneController.text,
+            )
+          : DemoAuthStore.signIn(
+              email: emailController.text,
+              password: passwordController.text,
+            );
+      widget.onSignedIn(user);
+    } on AuthException catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.message)));
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
+  static const roles = ['Responder', 'Student', 'Staff'];
+
   @override
   Widget build(BuildContext context) {
-    final roles = ['Responder', 'Student', 'Staff'];
-
     return Scaffold(
       body: SafeArea(
         child: ListView(
@@ -332,8 +455,18 @@ class _AuthScreenState extends State<AuthScreen> {
                     TextFormField(
                       controller: nameController,
                       decoration: const InputDecoration(labelText: 'Name'),
+                      validator: (value) => createAccount ? requiredValidator(value) : null,
                     ),
                     const SizedBox(height: 12),
+                    if (createAccount) ...[
+                      TextFormField(
+                        controller: phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: const InputDecoration(labelText: 'Phone', prefixIcon: Icon(Icons.call_rounded)),
+                        validator: requiredValidator,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
                     TextFormField(
                       controller: emailController,
                       keyboardType: TextInputType.emailAddress,
@@ -356,20 +489,37 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () {
-                        if (formKey.currentState?.validate() ?? false) widget.onSignedIn(nameController.text);
-                      },
-                      child: Text(createAccount ? 'Create and continue' : 'Sign in'),
+                      onPressed: busy ? null : submit,
+                      child: busy
+                          ? const SizedBox.square(
+                              dimension: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : Text(createAccount ? 'Create and continue' : 'Sign in'),
                     ),
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
-                      onPressed: () => widget.onSignedIn(nameController.text),
+                      onPressed: () => widget.onSignedIn(
+                        DcgUser(
+                          name: nameController.text.trim().isEmpty ? 'Google Responder' : nameController.text.trim(),
+                          email: emailController.text.trim().isEmpty ? 'google@diu.edu.bd' : emailController.text.trim(),
+                          role: roles[roleIndex],
+                          phone: phoneController.text.trim().isEmpty ? '+8801700000000' : phoneController.text.trim(),
+                          department: 'Google Auth Demo',
+                        ),
+                      ),
                       icon: const Icon(Icons.g_mobiledata_rounded),
                       label: const Text('Continue with Google'),
                     ),
                     Center(
                       child: TextButton(
-                        onPressed: () => setState(() => createAccount = !createAccount),
+                        onPressed: () => setState(() {
+                          createAccount = !createAccount;
+                          if (createAccount && emailController.text == 'responder@diu.edu.bd') {
+                            emailController.text = '';
+                            passwordController.text = '';
+                          }
+                        }),
                         child: Text(createAccount ? 'Already have an account?' : 'Create a new account'),
                       ),
                     ),
@@ -385,9 +535,9 @@ class _AuthScreenState extends State<AuthScreen> {
 }
 
 class DcgHome extends StatefulWidget {
-  const DcgHome({required this.responderName, required this.onSignOut, super.key});
+  const DcgHome({required this.initialUser, required this.onSignOut, super.key});
 
-  final String responderName;
+  final DcgUser initialUser;
   final VoidCallback onSignOut;
 
   @override
@@ -398,6 +548,13 @@ class _DcgHomeState extends State<DcgHome> {
   int tabIndex = 0;
   final cases = List<DcgCase>.from(seedCases);
   final pageController = PageController();
+  late DcgUser user;
+
+  @override
+  void initState() {
+    super.initState();
+    user = widget.initialUser;
+  }
 
   @override
   void dispose() {
@@ -413,7 +570,7 @@ class _DcgHomeState extends State<DcgHome> {
     setState(() {
       dcgCase.status = status;
       dcgCase.updatedAt = DateTime.now();
-      dcgCase.updatedBy = widget.responderName;
+      dcgCase.updatedBy = user.name;
     });
     showSnack('${dcgCase.location} moved to ${status.label}');
   }
@@ -431,13 +588,14 @@ class _DcgHomeState extends State<DcgHome> {
   Widget build(BuildContext context) {
     final pages = [
       DashboardPage(
-        responderName: widget.responderName,
+        user: user,
         cases: cases,
         onOpenSos: () => selectTab(1),
+        onOpenProfile: () => selectTab(5),
         onSelectCategory: (category) => showReportSheet(category.name),
       ),
       SosPage(
-        responderName: widget.responderName,
+        responderName: user.name,
         onCreateCase: (dcgCase) {
           addCase(dcgCase);
           showSnack('Critical SOS case created');
@@ -448,6 +606,16 @@ class _DcgHomeState extends State<DcgHome> {
       ),
       CasesPage(cases: cases, onStatusChange: updateStatus),
       ContactsPage(),
+      ProfilePage(
+        user: user,
+        cases: cases,
+        onSave: (updatedUser) {
+          setState(() => user = updatedUser);
+          DemoAuthStore.updateUser(updatedUser);
+          showSnack('Profile updated');
+        },
+        onSignOut: widget.onSignOut,
+      ),
     ];
 
     return Scaffold(
@@ -477,6 +645,7 @@ class _DcgHomeState extends State<DcgHome> {
           NavigationDestination(icon: Icon(Icons.edit_note_rounded), label: 'Report'),
           NavigationDestination(icon: Icon(Icons.view_kanban_rounded), label: 'Cases'),
           NavigationDestination(icon: Icon(Icons.call_rounded), label: 'Contacts'),
+          NavigationDestination(icon: Icon(Icons.person_rounded), label: 'Profile'),
         ],
       ),
     );
@@ -489,7 +658,7 @@ class _DcgHomeState extends State<DcgHome> {
       showDragHandle: true,
       builder: (context) => ReportSheet(
         initialCategory: category,
-        responderName: widget.responderName,
+        responderName: user.name,
         onSubmit: (dcgCase) {
           addCase(dcgCase);
           showSnack('Report submitted');
@@ -501,16 +670,18 @@ class _DcgHomeState extends State<DcgHome> {
 
 class DashboardPage extends StatelessWidget {
   const DashboardPage({
-    required this.responderName,
+    required this.user,
     required this.cases,
     required this.onOpenSos,
+    required this.onOpenProfile,
     required this.onSelectCategory,
     super.key,
   });
 
-  final String responderName;
+  final DcgUser user;
   final List<DcgCase> cases;
   final VoidCallback onOpenSos;
+  final VoidCallback onOpenProfile;
   final ValueChanged<EmergencyCategory> onSelectCategory;
 
   @override
@@ -518,6 +689,7 @@ class DashboardPage extends StatelessWidget {
     final open = cases.where((item) => item.status != CaseStatus.resolved).length;
     final critical = cases.where((item) => item.priority == Priority.critical).length;
     final responding = cases.where((item) => item.status == CaseStatus.responding).length;
+    final submittedByUser = cases.where((item) => item.name == user.name).length;
     final latest = cases.take(3).toList();
 
     return ListView(
@@ -529,9 +701,9 @@ class DashboardPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Hi, $responderName', style: Theme.of(context).textTheme.headlineMedium),
+                  Text('Hi, ${user.name}', style: Theme.of(context).textTheme.headlineMedium),
                   const SizedBox(height: 5),
-                  Text('Swipe between sections. Tap a category to report faster.',
+                  Text('${user.role} - ${user.department}',
                       style: Theme.of(context).textTheme.bodyMedium),
                 ],
               ),
@@ -588,10 +760,24 @@ class DashboardPage extends StatelessWidget {
                     const SizedBox(width: 10),
                     Expanded(child: MetricPill(label: 'Critical', value: '$critical', danger: true)),
                     const SizedBox(width: 10),
-                    const Expanded(child: MetricPill(label: 'Avg', value: '4m')),
+                    Expanded(child: MetricPill(label: 'Mine', value: '$submittedByUser')),
                   ],
                 ),
               ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        SectionTitle(title: 'Responder dashboard', action: 'Profile', onAction: onOpenProfile),
+        const SizedBox(height: 12),
+        AppCard(
+          child: Column(
+            children: [
+              DashboardProgress(label: 'Campus coverage', value: 0.82, color: DcgTheme.green),
+              const SizedBox(height: 12),
+              DashboardProgress(label: 'Critical readiness', value: critical == 0 ? 0.35 : 0.72, color: DcgTheme.accent),
+              const SizedBox(height: 12),
+              DashboardProgress(label: 'Case resolution', value: cases.isEmpty ? 0 : cases.where((item) => item.status == CaseStatus.resolved).length / cases.length, color: DcgTheme.blue),
             ],
           ),
         ),
@@ -991,6 +1177,186 @@ class ContactsPage extends StatelessWidget {
   }
 }
 
+class ProfilePage extends StatefulWidget {
+  const ProfilePage({
+    required this.user,
+    required this.cases,
+    required this.onSave,
+    required this.onSignOut,
+    super.key,
+  });
+
+  final DcgUser user;
+  final List<DcgCase> cases;
+  final ValueChanged<DcgUser> onSave;
+  final VoidCallback onSignOut;
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  final formKey = GlobalKey<FormState>();
+  late final TextEditingController nameController;
+  late final TextEditingController emailController;
+  late final TextEditingController phoneController;
+  late final TextEditingController departmentController;
+  late String role;
+
+  @override
+  void initState() {
+    super.initState();
+    nameController = TextEditingController(text: widget.user.name);
+    emailController = TextEditingController(text: widget.user.email);
+    phoneController = TextEditingController(text: widget.user.phone);
+    departmentController = TextEditingController(text: widget.user.department);
+    role = widget.user.role;
+  }
+
+  @override
+  void didUpdateWidget(covariant ProfilePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.user != widget.user) {
+      nameController.text = widget.user.name;
+      emailController.text = widget.user.email;
+      phoneController.text = widget.user.phone;
+      departmentController.text = widget.user.department;
+      role = widget.user.role;
+    }
+  }
+
+  @override
+  void dispose() {
+    nameController.dispose();
+    emailController.dispose();
+    phoneController.dispose();
+    departmentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final myCases = widget.cases.where((item) => item.name == widget.user.name).length;
+    final resolved = widget.cases.where((item) => item.updatedBy == widget.user.name && item.status == CaseStatus.resolved).length;
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
+      children: [
+        Text('User profile', style: Theme.of(context).textTheme.headlineMedium),
+        const SizedBox(height: 8),
+        Text('Manage responder identity and account details for the app session.',
+            style: Theme.of(context).textTheme.bodyMedium),
+        const SizedBox(height: 18),
+        AppCard(
+          color: DcgTheme.slate,
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 30,
+                backgroundColor: DcgTheme.accent,
+                child: Text(
+                  widget.user.name.isEmpty ? 'D' : widget.user.name[0].toUpperCase(),
+                  style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(widget.user.name,
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 4),
+                    Text('${widget.user.role} - ${widget.user.department}',
+                        style: const TextStyle(color: Color(0xFFDDE2EF))),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(child: MetricPill(label: 'My reports', value: '$myCases')),
+            const SizedBox(width: 10),
+            Expanded(child: MetricPill(label: 'Resolved', value: '$resolved')),
+            const SizedBox(width: 10),
+            const Expanded(child: MetricPill(label: 'Trust', value: 'A+')),
+          ],
+        ),
+        const SizedBox(height: 18),
+        AppCard(
+          child: Form(
+            key: formKey,
+            child: Column(
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(labelText: 'Full name', prefixIcon: Icon(Icons.person_rounded)),
+                  validator: requiredValidator,
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'Email', prefixIcon: Icon(Icons.mail_rounded)),
+                  validator: (value) => value != null && value.contains('@') ? null : 'Enter a valid email',
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'Phone', prefixIcon: Icon(Icons.call_rounded)),
+                  validator: requiredValidator,
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: role,
+                  decoration: const InputDecoration(labelText: 'Role'),
+                  items: ['Responder', 'Student', 'Staff']
+                      .map((item) => DropdownMenuItem(value: item, child: Text(item)))
+                      .toList(),
+                  onChanged: (value) => setState(() => role = value ?? role),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: departmentController,
+                  decoration: const InputDecoration(labelText: 'Department', prefixIcon: Icon(Icons.apartment_rounded)),
+                  validator: requiredValidator,
+                ),
+                const SizedBox(height: 18),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    if (!(formKey.currentState?.validate() ?? false)) return;
+                    widget.onSave(
+                      widget.user.copyWith(
+                        name: nameController.text.trim(),
+                        email: emailController.text.trim().toLowerCase(),
+                        role: role,
+                        phone: phoneController.text.trim(),
+                        department: departmentController.text.trim(),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.save_rounded),
+                  label: const Text('Save profile'),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: widget.onSignOut,
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('Sign out'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class ReportSheet extends StatefulWidget {
   const ReportSheet({
     required this.initialCategory,
@@ -1199,6 +1565,45 @@ class MetricPill extends StatelessWidget {
   }
 }
 
+class DashboardProgress extends StatelessWidget {
+  const DashboardProgress({
+    required this.label,
+    required this.value,
+    required this.color,
+    super.key,
+  });
+
+  final String label;
+  final double value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = value.clamp(0.0, 1.0).toDouble();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: Text(label, style: Theme.of(context).textTheme.titleMedium)),
+            Text('${(clamped * 100).round()}%', style: const TextStyle(fontWeight: FontWeight.w900)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: clamped,
+            minHeight: 9,
+            backgroundColor: const Color(0xFFEFF2F7),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class CategoryTile extends StatelessWidget {
   const CategoryTile({required this.category, required this.onTap, super.key});
 
@@ -1310,7 +1715,7 @@ class CompactCaseTile extends StatelessWidget {
               children: [
                 Text(dcgCase.location, style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 2),
-                Text('${dcgCase.category} • ${dcgCase.status.label}', style: Theme.of(context).textTheme.bodyMedium),
+                Text('${dcgCase.category} - ${dcgCase.status.label}', style: Theme.of(context).textTheme.bodyMedium),
               ],
             ),
           ),
